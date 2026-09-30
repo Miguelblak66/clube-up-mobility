@@ -70,4 +70,22 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_partner ON audit_logs(partner_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_partner ON audit_logs(partner_id); -- Tabela para os Administradores do Sistema
+CREATE TABLE IF NOT EXISTS administradores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+                senha TEXT NOT NULL,
+                    criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+                    );
+
+                    -- Tabela para gerenciar os Tokens de Login ativos
+                    CREATE TABLE IF NOT EXISTS sessoes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            token TEXT NOT NULL UNIQUE,
+                                usuario_id INTEGER NOT NULL,
+                                    tipo_usuario TEXT NOT NULL, -- 'admin', 'membro' ou 'parceiro'
+                                        criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+                                            expira_em TEXT NOT NULL
+                                            );
+                                            
