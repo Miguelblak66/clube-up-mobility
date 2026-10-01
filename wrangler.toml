@@ -1,6 +1,7 @@
-name = "clube-up-mobility"
+name = "clube-up-mobility-web"
 pages_build_output_dir = "."
 
 [[d1_databases]]
 binding = "DB"
 database_name = "db"
+database_id = "d2f958c1-586f-4d4a-8f51-a0f58c763411"
