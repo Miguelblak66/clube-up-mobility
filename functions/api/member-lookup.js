@@ -1,3 +1,79 @@
-export async function onRequestGet({request,env}){const s=await session(request,env);if(!s)return json({error:'UNAUTHORIZED'},401);const u=new URL(request.url);const code=String(u.searchParams.get('code')||'').trim().toUpperCase();if(!/^UP-[A-Z0-9]{6}$/.test(code))return json({error:'Informe um código UP válido, como UP-ABC123.'},400);const m=await env.DB.prepare(`SELECT id,code,name,profile,city,driver_id,status FROM club_members WHERE code=?`).bind(code).first();if(!m)return json({error:'Membro não encontrado.'},404);if(m.status!=='active')return json({error:'Este cadastro não está ativo.'},409);return json({member:{id:m.id,code:m.code,name:m.name,profile:m.profile,city:m.city,driver_id:m.driver_id}})}
-async function session(req,env){try{const m=(req.headers.get('Cookie')||'').match(/(?:^|; )up_partner=([^;]+)/);if(!m)return null;const [raw,hex]=m[1].split('.');const secret=env.PARTNER_SECRET||env.ADMIN_SECRET||env.ADMIN_PASSWORD||'change-me';const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['verify']);const sig=new Uint8Array((hex.match(/.{2}/g)||[]).map(x=>parseInt(x,16)));if(!await crypto.subtle.verify('HMAC',key,sig,new TextEncoder().encode(raw)))return null;const p=JSON.parse(atob(raw.replace(/-/g,'+').replace(/_/g,'/')));return p.exp>Date.now()?p:null}catch(e){return null}}
-function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json','cache-control':'no-store'}})}
+export async function onRequestPost(context) {
+      try {
+          const { request, env } = context;
+
+              if (!env.DB) {
+                    return new Response(JSON.stringify({ error: "Banco de dados não configurado." }), { 
+                            status: 500,
+                                    headers: { "Content-Type": "application/json" }
+                                          });
+                                              }
+
+                                                  // 1. 🔒 BLOCO DE SEGURANÇA: Verifica se quem está consultando é um parceiro ou admin logado
+                                                      const cookieHeader = request.headers.get("Cookie") || "";
+                                                          const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
+                                                              const token = cookies["auth_token"];
+
+                                                                  if (!token) {
+                                                                        return new Response(JSON.stringify({ error: "Acesso negado. Faça login primeiro." }), { 
+                                                                                status: 401,
+                                                                                        headers: { "Content-Type": "application/json" }
+                                                                                              });
+                                                                                                  }
+
+                                                                                                      const sessao = await env.DB.prepare(
+                                                                                                            "SELECT * FROM sessoes WHERE token = ? AND datetime(expira_em) > datetime('now') LIMIT 1"
+                                                                                                                ).bind(token).first();
+
+                                                                                                                    if (!sessao || (sessao.tipo_usuario !== "parceiro" && sessao.tipo_usuario !== "admin")) {
+                                                                                                                          return new Response(JSON.stringify({ error: "Acesso restrito para parceiros e administradores." }), { 
+                                                                                                                                  status: 403,
+                                                                                                                                          headers: { "Content-Type": "application/json" }
+                                                                                                                                                });
+                                                                                                                                                    }
+
+                                                                                                                                                        // 2. Captura o código do membro enviado para a consulta
+                                                                                                                                                            const { codigoMembro } = await request.json();
+
+                                                                                                                                                                if (!codigoMembro) {
+                                                                                                                                                                      return new Response(JSON.stringify({ error: "O código do membro é obrigatório para a consulta." }), { 
+                                                                                                                                                                              status: 400,
+                                                                                                                                                                                      headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                            });
+                                                                                                                                                                                                }
+
+                                                                                                                                                                                                    // 3. Busca o membro no banco de dados pela sua tabela 'club_members'
+                                                                                                                                                                                                        const membro = await env.DB.prepare(
+                                                                                                                                                                                                              "SELECT id, codigo, nome, status FROM club_members WHERE codigo = ? LIMIT 1"
+                                                                                                                                                                                                                  ).bind(codigoMembro).first();
+
+                                                                                                                                                                                                                      if (!membro) {
+                                                                                                                                                                                                                            return new Response(JSON.stringify({ found: false, error: "Membro não encontrado no clube." }), { 
+                                                                                                                                                                                                                                    status: 404,
+                                                                                                                                                                                                                                            headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                                                                  });
+                                                                                                                                                                                                                                                      }
+
+                                                                                                                                                                                                                                                          // 4. Retorna se o membro está ativo ou se possui alguma restrição
+                                                                                                                                                                                                                                                              return new Response(JSON.stringify({
+                                                                                                                                                                                                                                                                    found: true,
+                                                                                                                                                                                                                                                                          member: {
+                                                                                                                                                                                                                                                                                  codigo: membro.codigo,
+                                                                                                                                                                                                                                                                                          nome: membro.nome,
+                                                                                                                                                                                                                                                                                                  status: membro.status,
+                                                                                                                                                                                                                                                                                                          pode_usar_beneficio: membro.status === "ativo"
+                                                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                                                    }), {
+                                                                                                                                                                                                                                                                                                                          status: 200,
+                                                                                                                                                                                                                                                                                                                                headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                                                                                                                                                    });
+
+                                                                                                                                                                                                                                                                                                                                      } catch (error) {
+                                                                                                                                                                                                                                                                                                                                          return new Response(JSON.stringify({ error: "Erro ao consultar membro: " + error.message }), { 
+                                                                                                                                                                                                                                                                                                                                                status: 500,
+                                                                                                                                                                                                                                                                                                                                                      headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                                                                                                                                                                          });
+                                                                                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                                                                                            
+}
