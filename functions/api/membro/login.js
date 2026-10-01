@@ -1,6 +1,79 @@
-export async function onRequestPost({request,env}){try{const b=await request.json();const email=String(b.email||'').trim().toLowerCase(),password=String(b.password||'');if(!email||!password)return json({error:'Informe e-mail e senha.'},400);const row=await env.DB.prepare(`SELECT pu.id,pu.email,pu.password_hash,pu.status,p.status partner_status,p.id partner_id,p.code,p.company_name FROM partner_users pu JOIN partners p ON p.id=pu.partner_id WHERE pu.email=? LIMIT 1`).bind(email).first();if(!row||row.status!=='active'||row.partner_status!=='active')return json({error:'E-mail ou senha inválidos.'},401);if(!(await verifyPassword(password,row.password_hash)))return json({error:'E-mail ou senha inválidos.'},401);const token=await sign({uid:row.id,pid:row.partner_id,exp:Date.now()+8*60*60*1000},env.PARTNER_SECRET||env.ADMIN_SECRET||env.ADMIN_PASSWORD||'change-me');return new Response(JSON.stringify({ok:true,companyName:row.company_name,code:row.code}),{headers:{'content-type':'application/json','set-cookie':cookie('up_partner',token)}})}catch(e){return json({error:'Não foi possível entrar.'},400)}}
-async function verifyPassword(password,stored){try{const [tag,it,salt64,hash64]=stored.split('$');if(tag!=='pbkdf2')return false;const salt=from64(salt64),expected=from64(hash64),key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits']);const bits=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:Number(it),hash:'SHA-256'},key,expected.length*8));if(bits.length!==expected.length)return false;let d=0;for(let i=0;i<bits.length;i++)d|=bits[i]^expected[i];return d===0}catch(e){return false}}
-function from64(s){const raw=atob(s);return Uint8Array.from(raw,c=>c.charCodeAt(0))}
-async function sign(p,secret){const raw=btoa(JSON.stringify(p)).replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(raw));return raw+'.'+Array.from(new Uint8Array(sig),x=>x.toString(16).padStart(2,'0')).join('')}
-function cookie(n,v){return `${n}=${v}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800`}
-function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json'}})}
+export async function onRequestPost(context) {
+      try {
+          const { request, env } = context;
+              
+                  // 1. Verifica se a conexão com o banco Cloudflare D1 está configurada
+                      if (!env.DB) {
+                            return new Response(JSON.stringify({ error: "Banco de dados D1 não vinculado nas configurações." }), {
+                                    status: 500,
+                                            headers: { "Content-Type": "application/json" }
+                                                  });
+                                                      }
+
+                                                          // 2. Captura os dados enviados pelo formulário do app/site
+                                                              const { email, password } = await request.json();
+
+                                                                  if (!email || !password) {
+                                                                        return new Response(JSON.stringify({ error: "E-mail e senha são obrigatórios." }), {
+                                                                                status: 400,
+                                                                                        headers: { "Content-Type": "application/json" }
+                                                                                              });
+                                                                                                  }
+
+                                                                                                      // 3. Busca o membro no banco de dados pela tabela que você já tinha (club_members)
+                                                                                                          // Nota: Como o e-mail no seu schema está como 'e-mail', usamos entre aspas no SQL
+                                                                                                              const membro = await env.DB.prepare(
+                                                                                                                    'SELECT * FROM club_members WHERE "e-mail" = ? LIMIT 1'
+                                                                                                                        ).bind(email).first();
+
+                                                                                                                            // 4. Verifica se o usuário existe e se a senha está correta
+                                                                                                                                // ⚠️ Importante: Para produção, use criptografia (ex: Web Crypto API) para comparar as senhas em hash!
+                                                                                                                                    if (!membro || membro.senha_hash !== password) {
+                                                                                                                                          return new Response(JSON.stringify({ error: "E-mail ou senha inválidos." }), {
+                                                                                                                                                  status: 401,
+                                                                                                                                                          headers: { "Content-Type": "application/json" }
+                                                                                                                                                                });
+                                                                                                                                                                    }
+
+                                                                                                                                                                        // 5. Verifica se o membro não está bloqueado ou suspenso
+                                                                                                                                                                            if (membro.status !== 'ativo') {
+                                                                                                                                                                                  return new Response(JSON.stringify({ error: "Esta conta não está ativa no clube." }), {
+                                                                                                                                                                                          status: 403,
+                                                                                                                                                                                                  headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                        });
+                                                                                                                                                                                                            }
+
+                                                                                                                                                                                                                // 6. Cria um Token único de sessão e define a expiração para 7 dias
+                                                                                                                                                                                                                    const token = crypto.randomUUID();
+                                                                                                                                                                                                                        const expiraEm = new Date();
+                                                                                                                                                                                                                            expiraEm.setDate(expiraEm.getDate() + 7);
+
+                                                                                                                                                                                                                                // 7. Grava a sessão na tabela 'sessoes' que você acabou de criar no schema.sql
+                                                                                                                                                                                                                                    await env.DB.prepare(
+                                                                                                                                                                                                                                          "INSERT INTO sessoes (token, usuario_id, tipo_usuario, expira_em) VALUES (?, ?, ?, ?)"
+                                                                                                                                                                                                                                              ).bind(token, membro.id, "membro", expiraEm.toISOString()).run();
+
+                                                                                                                                                                                                                                                  // 8. Define o cookie de segurança para o navegador do celular do usuário
+                                                                                                                                                                                                                                                      const cookie = `auth_token=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`;
+
+                                                                                                                                                                                                                                                          return new Response(JSON.stringify({ 
+                                                                                                                                                                                                                                                                success: true, 
+                                                                                                                                                                                                                                                                      message: "Login realizado com sucesso!",
+                                                                                                                                                                                                                                                                            user: { nome: membro.nome, codigo: membro.codigo }
+                                                                                                                                                                                                                                                                                }), {
+                                                                                                                                                                                                                                                                                      status: 200,
+                                                                                                                                                                                                                                                                                            headers: {
+                                                                                                                                                                                                                                                                                                    "Content-Type": "application/json",
+                                                                                                                                                                                                                                                                                                            "Set-Cookie": cookie
+                                                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                                                      });
+
+                                                                                                                                                                                                                                                                                                                        } catch (error) {
+                                                                                                                                                                                                                                                                                                                            return new Response(JSON.stringify({ error: "Erro interno no servidor: " + error.message }), {
+                                                                                                                                                                                                                                                                                                                                  status: 500,
+                                                                                                                                                                                                                                                                                                                                        headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                                                                                                                                                            });
+                                                                                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                                                                                              
+}

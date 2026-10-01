@@ -1,3 +1,56 @@
-export async function onRequestGet({request,env}){const s=await session(request,env);if(!s)return json({error:'UNAUTHORIZED'},401);const p=await env.DB.prepare(`SELECT id,code,company_name,responsible_name,phone,email,category,city,address,benefit,logo_url,status,created_at,updated_at FROM partners WHERE id=?`).bind(s.pid).first();if(!p)return json({error:'Parceiro não encontrado.'},404);let total=0,history=[];try{const uses=await env.DB.prepare(`SELECT id,member_code,benefit_label,used_at FROM benefit_uses WHERE partner_id=? ORDER BY id DESC LIMIT 30`).bind(s.pid).all();history=uses.results||[];total=history.length;const c=await env.DB.prepare(`SELECT COUNT(*) total FROM benefit_uses WHERE partner_id=?`).bind(s.pid).first();total=Number(c?.total||0)}catch(e){}return json({partner:p,usage:{total,history}})}
-async function session(req,env){try{const m=(req.headers.get('Cookie')||'').match(/(?:^|; )up_partner=([^;]+)/);if(!m)return null;const [raw,hex]=m[1].split('.');const secret=env.PARTNER_SECRET||env.ADMIN_SECRET||env.ADMIN_PASSWORD||'change-me';const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['verify']);const sig=new Uint8Array((hex.match(/.{2}/g)||[]).map(x=>parseInt(x,16)));if(!await crypto.subtle.verify('HMAC',key,sig,new TextEncoder().encode(raw)))return null;const p=JSON.parse(atob(raw.replace(/-/g,'+').replace(/_/g,'/')));return p.exp>Date.now()?p:null}catch(e){return null}}
-function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json','cache-control':'no-store'}})}
+export async function onRequestGet(context) {
+      try {
+          const { request, env } = context;
+
+              if (!env.DB) {
+                    return new Response(JSON.stringify({ authenticated: false, error: "Banco de dados não configurado." }), { status: 500 });
+                        }
+
+                            // 1. Pega o cookie de autenticação guardado no navegador do celular
+                                const cookieHeader = request.headers.get("Cookie") || "";
+                                    const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
+                                        const token = cookies["auth_token"];
+
+                                            if (!token) {
+                                                  return new Response(JSON.stringify({ authenticated: false }), { status: 401 });
+                                                      }
+
+                                                          // 2. Busca na tabela 'sessoes' para ver se o token é válido e ainda não expirou
+                                                              const sessao = await env.DB.prepare(
+                                                                    "SELECT * FROM sessoes WHERE token = ? AND datetime(expira_em) > datetime('now') LIMIT 1"
+                                                                        ).bind(token).first();
+
+                                                                            if (!sessao || sessao.tipo_usuario !== "membro") {
+                                                                                  return new Response(JSON.stringify({ authenticated: false, error: "Sessão inválida ou expirada." }), { status: 401 });
+                                                                                      }
+
+                                                                                          // 3. Com o id do usuário em mãos, busca os dados reais dele na tabela 'club_members'
+                                                                                              const membro = await env.DB.prepare(
+                                                                                                    'SELECT id, codigo, nome, "e-mail", status FROM club_members WHERE id = ? LIMIT 1'
+                                                                                                        ).bind(sessao.usuario_id).first();
+
+                                                                                                            if (!membro || membro.status !== 'ativo') {
+                                                                                                                  return new Response(JSON.stringify({ authenticated: false, error: "Usuário não encontrado ou inativo." }), { status: 401 });
+                                                                                                                      }
+
+                                                                                                                          // 4. Retorna os dados do perfil do membro logado
+                                                                                                                              return new Response(JSON.stringify({
+                                                                                                                                    authenticated: true,
+                                                                                                                                          user: {
+                                                                                                                                                  id: membro.id,
+                                                                                                                                                          codigo: membro.codigo,
+                                                                                                                                                                  nome: membro.nome,
+                                                                                                                                                                          email: membro['e-mail'],
+                                                                                                                                                                                  tipo: "membro"
+                                                                                                                                                                                        }
+                                                                                                                                                                                            }), {
+                                                                                                                                                                                                  status: 200,
+                                                                                                                                                                                                        headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                            });
+
+                                                                                                                                                                                                              } catch (error) {
+                                                                                                                                                                                                                  return new Response(JSON.stringify({ authenticated: false, error: error.message }), { status: 500 });
+                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                    
+}
