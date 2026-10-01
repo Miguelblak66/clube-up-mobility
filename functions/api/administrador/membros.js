@@ -1,9 +1,66 @@
-export async function onRequestGet({request,env}){
-  if(!(await authorized(request,env))) return json({error:'UNAUTHORIZED'},401);
-  const rows=await env.DB.prepare(`SELECT code,name,phone,email,profile,city,driver_id,status,created_at FROM club_members ORDER BY id DESC LIMIT 1000`).all();
-  const stats=await env.DB.prepare(`SELECT COUNT(*) total,SUM(profile='motorista') drivers,SUM(profile='cliente') clients,SUM(status='active') active FROM club_members`).first();
-  return json({members:rows.results||[],stats:stats||{}});
+export async function onRequest(context) {
+    try {
+        const { request, env } = context;
+
+            if (!env.DB) {
+                  return new Response(JSON.stringify({ error: "Banco de dados não configurado." }), { status: 500 });
+                      }
+
+                          // 🔒 BLOCO DE SEGURANÇA: Verifica se é um Admin válido antes de dar acesso aos dados
+                              const cookieHeader = request.headers.get("Cookie") || "";
+                                  const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
+                                      const token = cookies["auth_token"];
+
+                                          if (!token) {
+                                                return new Response(JSON.stringify({ error: "Acesso negado. Faça login como administrador." }), { status: 401 });
+                                                    }
+
+                                                        const sessao = await env.DB.prepare(
+                                                              "SELECT * FROM sessoes WHERE token = ? AND datetime(expira_em) > datetime('now') LIMIT 1"
+                                                                  ).bind(token).first();
+
+                                                                      if (!sessao || sessao.tipo_usuario !== "admin") {
+                                                                            return new Response(JSON.stringify({ error: "Sessão inválida ou expirada." }), { status: 401 });
+                                                                                }
+
+                                                                                    // 🚪 SE FOR UMA REQUISIÇÃO GET: O admin quer LISTAR os membros do banco
+                                                                                        if (request.method === "GET") {
+                                                                                              // Busca os membros cadastrados na tabela 'club_members' que você já tinha no schema
+                                                                                                    const { results } = await env.DB.prepare(
+                                                                                                            'SELECT id, codigo, nome, "e-mail", telefone, status, criado_em FROM club_members ORDER BY id DESC'
+                                                                                                                  ).all();
+
+                                                                                                                        return new Response(JSON.stringify({ success: true, members: results }), {
+                                                                                                                                status: 200,
+                                                                                                                                        headers: { "Content-Type": "application/json" }
+                                                                                                                                              });
+                                                                                                                                                  }
+
+                                                                                                                                                      // 📥 SE FOR UMA REQUISIÇÃO POST: O admin quer CADASTRAR um membro novo manualmente
+                                                                                                                                                          if (request.method === "POST") {
+                                                                                                                                                                const { codigo, nome, email, telefone, senha_inicial } = await request.json();
+
+                                                                                                                                                                      if (!codigo || !nome || !email || !senha_inicial) {
+                                                                                                                                                                              return new Response(JSON.stringify({ error: "Campos obrigatórios faltando." }), { status: 400 });
+                                                                                                                                                                                    }
+
+                                                                                                                                                                                          // Insere o novo membro direto na tabela 'club_members'
+                                                                                                                                                                                                await env.DB.prepare(
+                                                                                                                                                                                                        'INSERT INTO club_members (codigo, nome, "e-mail", telefone, senha_hash, status) VALUES (?, ?, ?, ?, ?, ?)'
+                                                                                                                                                                                                              ).bind(codigo, nome, email, telefone, senha_inicial, "ativo").run();
+
+                                                                                                                                                                                                                    return new Response(JSON.stringify({ success: true, message: "Membro cadastrado com sucesso pelo administrador!" }), {
+                                                                                                                                                                                                                            status: 201,
+                                                                                                                                                                                                                                    headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                                                          });
+                                                                                                                                                                                                                                              }
+
+                                                                                                                                                                                                                                                  // Se tentarem usar outro método (como PUT ou DELETE), barra o acesso
+                                                                                                                                                                                                                                                      return new Response(JSON.stringify({ error: "Método não permitido." }), { status: 405 });
+
+                                                                                                                                                                                                                                                        } catch (error) {
+                                                                                                                                                                                                                                                            return new Response(JSON.stringify({ error: "Erro no servidor: " + error.message }), { status: 500 });
+                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                              
 }
-async function authorized(req,env){const m=(req.headers.get('Cookie')||'').match(/(?:^|; )up_admin=([^;]+)/);if(!m)return false;const p=await verify(m[1],env.ADMIN_SECRET||env.ADMIN_PASSWORD||'');return !!p&&p.exp>Date.now()}
-async function verify(token,secret){try{const [raw,hex]=token.split('.');if(!raw||!hex)return null;const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['verify']);const sig=new Uint8Array((hex.match(/.{2}/g)||[]).map(x=>parseInt(x,16)));const ok=await crypto.subtle.verify('HMAC',key,sig,new TextEncoder().encode(raw));if(!ok)return null;return JSON.parse(atob(raw.replace(/-/g,'+').replace(/_/g,'/')))}catch(e){return null}}
-function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json','cache-control':'no-store'}})}

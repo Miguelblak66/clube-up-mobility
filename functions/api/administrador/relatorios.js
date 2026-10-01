@@ -1,25 +1,62 @@
-export async function onRequestGet({request,env}){
-  if(!(await authorized(request,env))) return json({error:'UNAUTHORIZED'},401);
-  try{
-    const url=new URL(request.url);
-    const from=validDate(url.searchParams.get('from'));
-    const to=validDate(url.searchParams.get('to'));
-    const useWhere=[]; const params=[];
-    if(from){useWhere.push(`date(u.used_at)>=date(?)`);params.push(from)}
-    if(to){useWhere.push(`date(u.used_at)<=date(?)`);params.push(to)}
-    const where=useWhere.length?'WHERE '+useWhere.join(' AND '):'';
-    const totals=await env.DB.prepare(`SELECT COUNT(*) total, SUM(date(u.used_at)=date('now')) today, SUM(strftime('%Y-%m',u.used_at)=strftime('%Y-%m','now')) month FROM benefit_uses u ${where}`).bind(...params).first();
-    const activeMembers=await env.DB.prepare(`SELECT COUNT(*) n FROM club_members WHERE status='active'`).first();
-    const activePartners=await env.DB.prepare(`SELECT COUNT(*) n FROM partners WHERE status='active'`).first();
-    const partners=await env.DB.prepare(`SELECT p.id,p.code,p.company_name,p.category,p.city,COUNT(u.id) uses FROM partners p LEFT JOIN benefit_uses u ON u.partner_id=p.id ${where?'AND '+useWhere.join(' AND '):''} GROUP BY p.id ORDER BY uses DESC,p.company_name ASC LIMIT 100`).bind(...params).all();
-    const daily=await env.DB.prepare(`SELECT date(u.used_at) day,COUNT(*) uses FROM benefit_uses u ${where} GROUP BY date(u.used_at) ORDER BY day DESC LIMIT 366`).bind(...params).all();
-    const recent=await env.DB.prepare(`SELECT u.id,u.member_code,u.benefit_label,u.used_at,p.code partner_code,p.company_name FROM benefit_uses u JOIN partners p ON p.id=u.partner_id ${where} ORDER BY u.id DESC LIMIT 500`).bind(...params).all();
-    const benefits=await env.DB.prepare(`SELECT COALESCE(NULLIF(TRIM(u.benefit_label),''),'Benefício') benefit_label,COUNT(*) uses FROM benefit_uses u ${where} GROUP BY COALESCE(NULLIF(TRIM(u.benefit_label),''),'Benefício') ORDER BY uses DESC,benefit_label ASC LIMIT 100`).bind(...params).all();
-    const membersRecent=await env.DB.prepare(`SELECT code,name,profile,created_at FROM club_members ${from||to?`WHERE ${[from?'date(created_at)>=date(?)':'',to?'date(created_at)<=date(?)':''].filter(Boolean).join(' AND ')}`:''} ORDER BY id DESC LIMIT 200`).bind(...[from,to].filter(Boolean)).all();
-    return json({totals:{...(totals||{}),activeMembers:activeMembers?.n||0,activePartners:activePartners?.n||0},partners:partners.results||[],daily:daily.results||[],recent:recent.results||[],allUses:recent.results||[],benefits:benefits.results||[],membersRecent:membersRecent.results||[],filters:{from:from||'',to:to||''}});
-  }catch(e){return json({error:'Não foi possível carregar os relatórios.'},400)}
+export async function onRequestGet(context) {
+    try {
+        const { request, env } = context;
+
+            if (!env.DB) {
+                  return new Response(JSON.stringify({ error: "Banco de dados não configurado." }), { status: 500 });
+                      }
+
+                          // 🔒 BLOCO DE SEGURANÇA: Apenas administradores logados podem ver os relatórios
+                              const cookieHeader = request.headers.get("Cookie") || "";
+                                  const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
+                                      const token = cookies["auth_token"];
+
+                                          if (!token) {
+                                                return new Response(JSON.stringify({ error: "Acesso negado." }), { status: 401 });
+                                                    }
+
+                                                        const sessao = await env.DB.prepare(
+                                                              "SELECT * FROM sessoes WHERE token = ? AND datetime(expira_em) > datetime('now') LIMIT 1"
+                                                                  ).bind(token).first();
+
+                                                                      if (!sessao || sessao.tipo_usuario !== "admin") {
+                                                                            return new Response(JSON.stringify({ error: "Sessão inválida ou expirada." }), { status: 401 });
+                                                                                }
+
+                                                                                    // 📊 CONSULTAS DE RELATÓRIO: Conta os totais direto do banco de dados
+                                                                                        
+                                                                                            // 1. Total de Membros Ativos
+                                                                                                const totalMembros = await env.DB.prepare(
+                                                                                                      "SELECT COUNT(*) as total FROM club_members WHERE status = 'ativo'"
+                                                                                                          ).first();
+
+                                                                                                              // 2. Total de Parceiros Cadastrados
+                                                                                                                  const totalParceiros = await env.DB.prepare(
+                                                                                                                        "SELECT COUNT(*) as total FROM parceiros"
+                                                                                                                            ).first();
+
+                                                                                                                                // 3. Total de Sessões ativas de usuários no momento
+                                                                                                                                    const sessoesAtivas = await env.DB.prepare(
+                                                                                                                                          "SELECT COUNT(*) as total FROM sessoes WHERE datetime(expira_em) > datetime('now')"
+                                                                                                                                              ).first();
+
+                                                                                                                                                  // Retorna o compilado de métricas para o painel do administrador
+                                                                                                                                                      return new Response(JSON.stringify({
+                                                                                                                                                            success: true,
+                                                                                                                                                                  data: {
+                                                                                                                                                                          membros_ativos: totalMembros ? totalMembros.total : 0,
+                                                                                                                                                                                  parceiros_cadastrados: totalParceiros ? totalParceiros.total : 0,
+                                                                                                                                                                                          sessoes_ativas_no_momento: sessoesAtivas ? sessoesAtivas.total : 0,
+                                                                                                                                                                                                  gerado_em: new Date().toISOString()
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                            }), {
+                                                                                                                                                                                                                  status: 200,
+                                                                                                                                                                                                                        headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                                            });
+
+                                                                                                                                                                                                                              } catch (error) {
+                                                                                                                                                                                                                                  return new Response(JSON.stringify({ error: "Erro ao gerar relatório: " + error.message }), { status: 500 });
+                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                    
 }
-function validDate(v){return v&&/^\d{4}-\d{2}-\d{2}$/.test(v)?v:''}
-async function authorized(req,env){const m=(req.headers.get('Cookie')||'').match(/(?:^|; )up_admin=([^;]+)/);if(!m)return false;const p=await verify(m[1],env.ADMIN_SECRET||env.ADMIN_PASSWORD||'');return !!p&&p.exp>Date.now()}
-async function verify(token,secret){try{const [raw,hex]=token.split('.');if(!raw||!hex||!secret)return null;const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['verify']);const sig=new Uint8Array((hex.match(/.{2}/g)||[]).map(x=>parseInt(x,16)));if(!await crypto.subtle.verify('HMAC',key,sig,new TextEncoder().encode(raw)))return null;return JSON.parse(atob(raw.replace(/-/g,'+').replace(/_/g,'/')))}catch(e){return null}}
-function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json','cache-control':'no-store'}})}
