@@ -1,33 +1,68 @@
-// functions/api/administrador/login.js ou /parceiro/login.js
 export async function onRequestPost(context) {
-  try {
-      const { request, env } = context;
-          const { email, password } = await request.json();
+      try {
+          const { request, env } = context;
+              
+                  if (!env.DB) {
+                        return new Response(JSON.stringify({ error: "Banco de dados D1 não vinculado nas configurações." }), {
+                                status: 500,
+                                        headers: { "Content-Type": "application/json" }
+                                              });
+                                                  }
 
-              // ⚠️ TODO: Substitua pelo seu método real de validação (ex: busca no banco de dados D1 / schema.sql)
-                  // Exemplo básico ilustrativo:
-                      if (!email || !password) {
-                            return new Response(JSON.stringify({ error: "E-mail e senha são obrigatórios." }), {
-                                    status: 400,
-                                            headers: { "Content-Type": "application/json" }
-                                                  });
-                                                      }
+                                                      const { email, password } = await request.json();
 
-                                                          // Gerar um Token de Sessão (Simulação de JWT ou Token randômico)
-                                                              const sessionToken = crypto.randomUUID();
+                                                          if (!email || !password) {
+                                                                return new Response(JSON.stringify({ error: "E-mail e senha são obrigatórios." }), {
+                                                                        status: 400,
+                                                                                headers: { "Content-Type": "application/json" }
+                                                                                      });
+                                                                                          }
 
-                                                                  // Criar o cookie de autenticação seguro para o navegador
-                                                                      const cookie = `auth_token=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`;
+                                                                                              // Busca o parceiro na tabela 'parceiros' do seu schema
+                                                                                                  const parceiro = await env.DB.prepare(
+                                                                                                        "SELECT * FROM parceiros WHERE email = ? LIMIT 1"
+                                                                                                            ).bind(email).first();
 
-                                                                          return new Response(JSON.stringify({ success: true, message: "Login efetuado com sucesso!" }), {
-                                                                                status: 200,
-                                                                                      headers: {
-                                                                                              "Content-Type": "application/json",
-                                                                                                      "Set-Cookie": cookie
-                                                                                                            }
-                                                                                                                });
-                                                                                                                  } catch (error) {
-                                                                                                                      return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+                                                                                                                // Valida as credenciais do estabelecimento
+                                                                                                                    if (!parceiro || parceiro.senha_hash !== password) {
+                                                                                                                          return new Response(JSON.stringify({ error: "E-mail ou senha inválidos." }), {
+                                                                                                                                  status: 401,
+                                                                                                                                          headers: { "Content-Type": "application/json" }
+                                                                                                                                                });
+                                                                                                                                                    }
+
+                                                                                                                                                        const token = crypto.randomUUID();
+                                                                                                                                                            const expiraEm = new Date();
+                                                                                                                                                                expiraEm.setDate(expiraEm.getDate() + 7);
+
+                                                                                                                                                                    // Salva a sessão identificando o tipo como 'parceiro'
+                                                                                                                                                                        await env.DB.prepare(
+                                                                                                                                                                              "INSERT INTO sessoes (token, usuario_id, tipo_usuario, expira_em) VALUES (?, ?, ?, ?)"
+                                                                                                                                                                                  ).bind(token, parceiro.id, "parceiro", expiraEm.toISOString()).run();
+
+                                                                                                                                                                                      const cookie = `auth_token=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`;
+
+                                                                                                                                                                                          return new Response(JSON.stringify({ 
+                                                                                                                                                                                                success: true, 
+                                                                                                                                                                                                      message: "Login de parceiro realizado com sucesso!",
+                                                                                                                                                                                                            user: { nome: parceiro.nome_estabelecimento, responsavel: parceiro.responsavel }
+                                                                                                                                                                                                                }), {
+                                                                                                                                                                                                                      status: 200,
+                                                                                                                                                                                                                            headers: {
+                                                                                                                                                                                                                                    "Content-Type": "application/json",
+                                                                                                                                                                                                                                            "Set-Cookie": cookie
+                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                      });
+
+                                                                                                                                                                                                                                                        } catch (error) {
+                                                                                                                                                                                                                                                            return new Response(JSON.stringify({ error: "Erro interno no servidor: " + error.message }), {
+                                                                                                                                                                                                                                                                  status: 500,
+                                                                                                                                                                                                                                                                        headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                                                                                            });
+                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                                              
+}
                                                                                                                         }
                                                                                                                         }
                                                                                                                         
