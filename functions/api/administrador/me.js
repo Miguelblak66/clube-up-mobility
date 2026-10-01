@@ -1,32 +1,56 @@
-// functions/api/administrador/me.js ou /parceiro/me.js
 export async function onRequestGet(context) {
-  const { request } = context;
-    
-      // Pegar os cookies da requisição
-        const cookieHeader = request.headers.get("Cookie") || "";
-          const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
-            const token = cookies["auth_token"];
+    try {
+        const { request, env } = context;
 
-              // Se não houver o token de login no navegador, barra o acesso
-                if (!token) {
-                    return new Response(JSON.stringify({ authenticated: false, error: "Não autenticado." }), {
-                          status: 401,
-                                headers: { "Content-Type": "application/json" }
-                                    });
-                                      }
+            if (!env.DB) {
+                  return new Response(JSON.stringify({ authenticated: false, error: "Banco de dados não configurado." }), { status: 500 });
+                      }
 
-                                        // ⚠️ TODO: Buscar os dados do usuário no banco com base no 'token' obtido
-                                          // Exemplo de retorno:
-                                            const userData = {
-                                                authenticated: true,
-                                                    uid: "user_12345",
-                                                        role: request.url.includes("administrador") ? "admin" : "parceiro",
-                                                            updated_at: new Date().toISOString()
-                                                              };
+                          // 1. Pega o cookie de autenticação do administrador
+                              const cookieHeader = request.headers.get("Cookie") || "";
+                                  const cookies = Object.fromEntries(cookieHeader.split(";").map(c => c.trim().split("=")));
+                                      const token = cookies["auth_token"];
 
-                                                                return new Response(JSON.stringify(userData), {
-                                                                    status: 200,
-                                                                        headers: { "Content-Type": "application/json" }
-                                                                          });
-                                                                          }
+                                          if (!token) {
+                                                return new Response(JSON.stringify({ authenticated: false }), { status: 401 });
+                                                    }
+
+                                                        // 2. Verifica se a sessão existe e se é do tipo 'admin'
+                                                            const sessao = await env.DB.prepare(
+                                                                  "SELECT * FROM sessoes WHERE token = ? AND datetime(expira_em) > datetime('now') LIMIT 1"
+                                                                      ).bind(token).first();
+
+                                                                          if (!sessao || sessao.tipo_usuario !== "admin") {
+                                                                                return new Response(JSON.stringify({ authenticated: false, error: "Sessão inválida ou expirada." }), { status: 401 });
+                                                                                    }
+
+                                                                                        // 3. Busca os dados reais do administrador no banco de dados
+                                                                                            const admin = await env.DB.prepare(
+                                                                                                  "SELECT id, nome, email FROM administradores WHERE id = ? LIMIT 1"
+                                                                                                      ).bind(sessao.usuario_id).first();
+
+                                                                                                          if (!admin) {
+                                                                                                                return new Response(JSON.stringify({ authenticated: false, error: "Administrador não encontrado." }), { status: 401 });
+                                                                                                                    }
+
+                                                                                                                        // 4. Retorna o perfil completo do administrador logado
+                                                                                                                            return new Response(JSON.stringify({
+                                                                                                                                  authenticated: true,
+                                                                                                                                        user: {
+                                                                                                                                                id: admin.id,
+                                                                                                                                                        nome: admin.nome,
+                                                                                                                                                                email: admin.email,
+                                                                                                                                                                        tipo: "admin"
+                                                                                                                                                                              }
+                                                                                                                                                                                  }), {
+                                                                                                                                                                                        status: 200,
+                                                                                                                                                                                              headers: { "Content-Type": "application/json" }
+                                                                                                                                                                                                  });
+
+                                                                                                                                                                                                    } catch (error) {
+                                                                                                                                                                                                        return new Response(JSON.stringify({ authenticated: false, error: error.message }), { status: 500 });
+                                                                                                                                                                                                          }
+                                                                                                                                                                                                          }
+                                                                                                                                                                                                          
+}
                                                                           
