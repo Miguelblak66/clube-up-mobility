@@ -1,5 +1,7 @@
 name = "clube-up-mobility-web"
-pages_build_output_dir = "."
+
+[site]
+bucket = "."
 
 [[d1_databases]]
 binding = "DB"
