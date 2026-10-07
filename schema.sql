@@ -10,10 +10,10 @@ CREATE TABLE IF NOT EXISTS club_members (
   status TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
 CREATE INDEX IF NOT EXISTS idx_club_members_profile ON club_members(profile);
 CREATE INDEX IF NOT EXISTS idx_club_members_status ON club_members(status);
 CREATE INDEX IF NOT EXISTS idx_club_members_created_at ON club_members(created_at);
-
 
 CREATE TABLE IF NOT EXISTS partners (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS partners (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
 CREATE INDEX IF NOT EXISTS idx_partners_status ON partners(status);
 CREATE INDEX IF NOT EXISTS idx_partners_category ON partners(category);
 
@@ -43,7 +44,20 @@ CREATE TABLE IF NOT EXISTS partner_users (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY(partner_id) REFERENCES partners(id) ON DELETE CASCADE
 );
+
 CREATE INDEX IF NOT EXISTS idx_partner_users_email ON partner_users(email);
+
+CREATE TABLE IF NOT EXISTS member_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  member_id INTEGER NOT NULL UNIQUE,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','inactive')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY(member_id) REFERENCES club_members(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_member_users_email ON member_users(email);
 
 CREATE TABLE IF NOT EXISTS benefit_uses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,9 +69,9 @@ CREATE TABLE IF NOT EXISTS benefit_uses (
   FOREIGN KEY(partner_id) REFERENCES partners(id) ON DELETE CASCADE,
   FOREIGN KEY(member_id) REFERENCES club_members(id) ON DELETE SET NULL
 );
+
 CREATE INDEX IF NOT EXISTS idx_benefit_uses_partner ON benefit_uses(partner_id);
 CREATE INDEX IF NOT EXISTS idx_benefit_uses_used_at ON benefit_uses(used_at);
-
 CREATE INDEX IF NOT EXISTS idx_benefit_uses_member_code ON benefit_uses(member_code);
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -69,23 +83,23 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   details TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_partner ON audit_logs(partner_id); -- Tabela para os Administradores do Sistema
-CREATE TABLE IF NOT EXISTS administradores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-                senha TEXT NOT NULL,
-                    criado_em TEXT DEFAULT CURRENT_TIMESTAMP
-                    );
 
-                    -- Tabela para gerenciar os Tokens de Login ativos
-                    CREATE TABLE IF NOT EXISTS sessoes (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            token TEXT NOT NULL UNIQUE,
-                                usuario_id INTEGER NOT NULL,
-                                    tipo_usuario TEXT NOT NULL, -- 'admin', 'membro' ou 'parceiro'
-                                        criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
-                                            expira_em TEXT NOT NULL
-                                            );
-                                            
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_partner ON audit_logs(partner_id);
+
+CREATE TABLE IF NOT EXISTS administradores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  senha TEXT NOT NULL,
+  criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sessoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token TEXT NOT NULL UNIQUE,
+  usuario_id INTEGER NOT NULL,
+  tipo_usuario TEXT NOT NULL,
+  criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+  expira_em TEXT NOT NULL
+);
