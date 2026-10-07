@@ -1,8 +1,13 @@
 {
-      "name": "clube-up-mobility-web",
-        "version": "1.0.0",
-          "private": true
-          }
-
-
-        
+  "name": "clube-up-mobility-web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev .",
+    "deploy": "wrangler pages deploy .",
+    "build": "echo 'Cloudflare Pages static build complete'"
+  },
+  "devDependencies": {
+    "wrangler": "^3.15.0"
+  }
+}
