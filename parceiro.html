@@ -2,51 +2,127 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Painel do Posto - UP Mobility</title>
-                <style>
-                        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #fafafa; }
-                                .box { max-width: 400px; margin: 20px auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-                                        button { width: 85%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: bold; }
-                                                #res { margin-top: 15px; padding: 15px; border-radius: 5px; font-weight: bold; font-size: 18px; display: none; }
-                                                    </style>
-                                                        <script src="https://unpkg.com"></script>
-                                                        </head>
-                                                        <body>
-                                                            <div class="box">
-                                                                    <h2>Painel do Posto</h2>
-                                                                            <button onclick="scan()">Escanear QR Code</button>
-                                                                                    <div id="reader" style="width:100%; margin-top:15px;"></div>
-                                                                                            <div id="res"></div>
-                                                                                                </div>
-                                                                                                    <script>
-                                                                                                            function scan() {
-                                                                                                                        const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-                                                                                                                                    scanner.render((txt) => {
-                                                                                                                                                    scanner.clear();
-                                                                                                                                                                    const res = document.getElementById('res');
-                                                                                                                                                                                    res.style.display = 'block';
-                                                                                                                                                                                                    if (txt.startsWith("UPM-")) {
-                                                                                                                                                                                                                        const partes = txt.split("-");
-                                                                                                                                                                                                                                            const cpf = partes[1];
-                                                                                                                                                                                                                                                                const horaG = partes[2];
-                                                                                                                                                                                                                                                                                    const agora = new Date();
-                                                                                                                                                                                                                                                                                                        const minG = parseInt(horaG.substring(0,2)) * 60 + parseInt(horaG.substring(2,4));
-                                                                                                                                                                                                                                                                                                                            const minA = agora.getHours() * 60 + agora.getMinutes();
-                                                                                                                                                                                                                                                                                                                                                if ((minA - minG) <= 5) {
-                                                                                                                                                                                                                                                                                                                                                                        res.style.background = '#d4edda'; res.style.color = '#155724';
-                                                                                                                                                                                                                                                                                                                                                                                                res.innerHTML = `🟢 VÁLIDO!<br>CPF: ${cpf}<br>Liberar Desconto.`;
-                                                                                                                                                                                                                                                                                                                                                                                                                    } else {
-                                                                                                                                                                                                                                                                                                                                                                                                                                            res.style.background = '#f8d7da'; res.style.color = '#721c24';
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                    res.innerHTML = `🔴 EXPIRADO!<br>Cupom gerado há mais de 5 minutos.`;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        } else {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            res.style.background = '#f8d7da'; res.style.color = '#721c24';
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                res.innerHTML = `🔴 INVÁLIDO!<br>Código incorreto.`;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            });
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        </script>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        </body>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        </html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Posto | Clube Up Mobility</title>
+    <style>
+        :root {
+            --bg: #f6faf7;
+            --card: #ffffff;
+            --primary: #16a34a;
+            --primary-dark: #166534;
+            --text: #0f172a;
+            --muted: #475569;
+            --border: #dfeae2;
+            --danger: #991b1b;
+            --success: #166534;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+        .wrap {
+            max-width: 620px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        .box {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 26px;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+        }
+        h2 {
+            margin: 0 0 16px;
+            font-size: 1.8rem;
+            text-align: center;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px 18px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+        #reader {
+            margin-top: 18px;
+            min-height: 220px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, #ffffff, #f8fafc);
+            color: var(--muted);
+            text-align: center;
+            padding: 16px;
+        }
+        #res {
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 1.05rem;
+            display: none;
+        }
+        .success {
+            display: block !important;
+            background: rgba(22, 101, 52, 0.08);
+            color: var(--success);
+            border: 1px solid rgba(22, 101, 52, 0.18);
+        }
+        .error {
+            display: block !important;
+            background: rgba(153, 27, 27, 0.08);
+            color: var(--danger);
+            border: 1px solid rgba(153, 27, 27, 0.18);
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="box">
+            <h2>Painel do Posto</h2>
+            <button class="btn btn-primary" type="button" id="scanBtn">Escanear QR Code</button>
+            <div id="reader">Aguardando leitura...</div>
+            <div id="res"></div>
+        </div>
+    </div>
+
+    <script>
+        const scanBtn = document.getElementById('scanBtn');
+        const readerEl = document.getElementById('reader');
+        const resEl = document.getElementById('res');
+
+        function setResult(message, type = 'success') {
+            resEl.textContent = message;
+            resEl.className = type === 'success' ? 'success' : 'error';
+        }
+
+        function simulateScan() {
+            const code = 'MEM-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+            const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(code);
+            readerEl.innerHTML = `<img src="${qrUrl}" alt="QR Code" style="max-width:220px; width:100%;">`;
+
+            setTimeout(() => {
+                setResult(`Cupom validado com sucesso. Código: ${code}`, 'success');
+            }, 500);
+        }
+
+        scanBtn.addEventListener('click', simulateScan);
+    </script>
+</body>
+</html>
