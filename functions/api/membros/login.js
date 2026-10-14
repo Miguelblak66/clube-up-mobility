@@ -12,6 +12,43 @@ export async function onRequest(context) {
     return new Response(null, { headers: corsHeaders });
   }
 
+  async function sha256Hex(value) {
+    const encoder = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(value));
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  async function derivePbkdf2(password, saltHex) {
+    const encoder = new TextEncoder();
+    const saltBytes = Uint8Array.from(
+      saltHex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
+    );
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveBits']
+    );
+
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        hash: 'SHA-256',
+        salt: saltBytes,
+        iterations: 120000
+      },
+      keyMaterial,
+      256
+    );
+
+    return Array.from(new Uint8Array(derivedBits))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const email = String(body.email || '').trim().toLowerCase();
@@ -24,20 +61,30 @@ export async function onRequest(context) {
       });
     }
 
-    const encoder = new TextEncoder();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(senha));
-    const senhaHash = Array.from(new Uint8Array(hashBuffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-
     const usuario = await env.DB.prepare(`
-      SELECT mu.id, mu.member_id, mu.email, cm.name, cm.code
+      SELECT mu.id, mu.member_id, mu.email, mu.password_hash, mu.salt, cm.name, cm.code
       FROM member_users mu
       JOIN club_members cm ON cm.id = mu.member_id
-      WHERE lower(mu.email) = ? AND mu.password_hash = ? AND mu.status = 'active'
-    `).bind(email, senhaHash).get();
+      WHERE lower(mu.email) = ? AND mu.status = 'active'
+    `).bind(email).get();
 
     if (!usuario) {
+      return new Response(JSON.stringify({ error: 'Credenciais invalidas' }), {
+        status: 401,
+        headers: corsHeaders
+      });
+    }
+
+    let senhaValida = false;
+    if (usuario.salt) {
+      const derivedHash = await derivePbkdf2(senha, usuario.salt);
+      senhaValida = derivedHash === usuario.password_hash;
+    } else {
+      const legacyHash = await sha256Hex(senha);
+      senhaValida = legacyHash === usuario.password_hash;
+    }
+
+    if (!senhaValida) {
       return new Response(JSON.stringify({ error: 'Credenciais invalidas' }), {
         status: 401,
         headers: corsHeaders

@@ -12,6 +12,43 @@ export async function onRequest(context) {
     return new Response(null, { headers: corsHeaders });
   }
 
+  async function sha256Hex(value) {
+    const encoder = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(value));
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  async function derivePbkdf2(password, saltHex) {
+    const encoder = new TextEncoder();
+    const saltBytes = Uint8Array.from(
+      saltHex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
+    );
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveBits']
+    );
+
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        hash: 'SHA-256',
+        salt: saltBytes,
+        iterations: 120000
+      },
+      keyMaterial,
+      256
+    );
+
+    return Array.from(new Uint8Array(derivedBits))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
 
@@ -43,12 +80,11 @@ export async function onRequest(context) {
     }
 
     const code = String(body.codigo || body.code || `MEM-${Date.now().toString(36).toUpperCase()}`);
-
-    const encoder = new TextEncoder();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(senha));
-    const senhaHash = Array.from(new Uint8Array(hashBuffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
+    const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+    const saltHex = Array.from(saltBytes)
+      .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('');
+    const senhaHash = await derivePbkdf2(senha, saltHex);
 
     const memberInsert = await env.DB.prepare(`
       INSERT INTO club_members (code, name, phone, email, profile, city, status)
@@ -64,9 +100,9 @@ export async function onRequest(context) {
     }
 
     await env.DB.prepare(`
-      INSERT INTO member_users (member_id, email, password_hash, status)
-      VALUES (?, ?, ?, ?)
-    `).bind(memberId, email, senhaHash, 'active').run();
+      INSERT INTO member_users (member_id, email, password_hash, salt, status)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(memberId, email, senhaHash, saltHex, 'active').run();
 
     return new Response(JSON.stringify({
       success: true,
