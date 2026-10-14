@@ -39,7 +39,6 @@
             <p class="subtitle">Seu portal de vantagens e descontos exclusivos</p>
         </div>
 
-        <!-- FORMULÁRIO DE LOGIN -->
         <div id="login-section">
             <h3>Entrar na Área do Membro</h3>
             <form id="login-form" novalidate>
@@ -57,7 +56,6 @@
             <div id="login-error" class="error-msg"></div>
         </div>
 
-        <!-- FORMULÁRIO DE CADASTRO -->
         <div id="cadastro-section" class="hidden">
             <h3>Criar Conta</h3>
             <form id="cadastro-form" novalidate>
@@ -101,19 +99,30 @@
     </div>
 
     <script>
-        const API_URL = window.location.origin;
+        const API_URL = (() => {
+            const isLocal = window.location.protocol === 'file:' || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+            return isLocal ? 'http://localhost:8788' : window.location.origin;
+        })();
+
+        function setMessage(elementId, message, type = 'error') {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            el.textContent = message;
+            el.className = type === 'success' ? 'success-msg' : 'error-msg';
+        }
 
         function toggleForm(showCadastro) {
             document.getElementById('login-section').classList.toggle('hidden', showCadastro);
             document.getElementById('cadastro-section').classList.toggle('hidden', !showCadastro);
-            document.getElementById('login-error').textContent = '';
-            document.getElementById('cadastro-msg').textContent = '';
-            document.getElementById('login-error').className = 'error-msg';
-            document.getElementById('cadastro-msg').className = 'error-msg';
+            setMessage('login-error', '');
+            setMessage('cadastro-msg', '');
+            document.getElementById('login-form').querySelectorAll('input, select').forEach(el => el.classList.remove('field-error'));
+            document.getElementById('cadastro-form').querySelectorAll('input, select').forEach(el => el.classList.remove('field-error'));
         }
 
         function clearErrors(formId) {
             const form = document.getElementById(formId);
+            if (!form) return;
             form.querySelectorAll('input, select').forEach(el => el.classList.remove('field-error'));
         }
 
@@ -122,26 +131,40 @@
             if (el) el.classList.add('field-error');
         }
 
-        // LOGIN
+        async function parseJsonResponse(response) {
+            const text = await response.text();
+            if (!text) return {};
+            try {
+                return JSON.parse(text);
+            } catch (error) {
+                return { error: text };
+            }
+        }
+
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             clearErrors('login-form');
 
-            const email = document.getElementById('login-email').value.trim();
+            const email = document.getElementById('login-email').value.trim().toLowerCase();
             const senha = document.getElementById('login-senha').value;
-            const errorEl = document.getElementById('login-error');
             const btn = document.getElementById('btn-login');
-            errorEl.textContent = '';
-            errorEl.className = 'error-msg';
+            setMessage('login-error', '');
 
             if (!email) {
                 showFieldError('login-email');
-                errorEl.textContent = 'Por favor, preencha o e-mail.';
+                setMessage('login-error', 'Por favor, preencha o e-mail.');
                 return;
             }
             if (!senha) {
                 showFieldError('login-senha');
-                errorEl.textContent = 'Por favor, preencha a senha.';
+                setMessage('login-error', 'Por favor, preencha a senha.');
+                return;
+            }
+
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showFieldError('login-email');
+                setMessage('login-error', 'Por favor, informe um e-mail válido.');
                 return;
             }
 
@@ -152,30 +175,30 @@
                 const response = await fetch(`${API_URL}/api/membros/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, senha: senha })
+                    body: JSON.stringify({ email, senha })
                 });
-                const data = await response.json();
+                const data = await parseJsonResponse(response);
+
                 if (response.ok && data.success) {
-                    localStorage.setItem('clube_token', data.token);
-                    localStorage.setItem('clube_user', JSON.stringify(data.usuario));
+                    localStorage.setItem('clube_token', data.token || '');
+                    localStorage.setItem('clube_user', JSON.stringify(data.usuario || {}));
                     window.location.href = 'membro.html';
-                } else {
-                    errorEl.textContent = data.error || 'Erro ao fazer login. Verifique seus dados.';
+                    return;
                 }
+
+                setMessage('login-error', data.error || 'Erro ao fazer login. Verifique seus dados.');
             } catch (err) {
-                errorEl.textContent = 'Erro de conexão. Tente novamente em instantes.';
+                setMessage('login-error', 'Erro de conexão. Tente novamente em instantes.');
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Acessar Conta';
             }
         });
 
-        // CADASTRO
         document.getElementById('cadastro-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             clearErrors('cadastro-form');
 
-            // Ler valores dos campos
             const nomeEl = document.getElementById('cad-nome');
             const emailEl = document.getElementById('cad-email');
             const telefoneEl = document.getElementById('cad-telefone');
@@ -184,49 +207,46 @@
             const senhaEl = document.getElementById('cad-senha');
 
             const nome = nomeEl ? nomeEl.value.trim() : '';
-            const email = emailEl ? emailEl.value.trim() : '';
+            const email = emailEl ? emailEl.value.trim().toLowerCase() : '';
             const telefone = telefoneEl ? telefoneEl.value.trim() : '';
             const profile = profileEl ? profileEl.value : 'cliente';
             const city = cityEl ? cityEl.value.trim() : '';
             const senha = senhaEl ? senhaEl.value : '';
 
-            const msgEl = document.getElementById('cadastro-msg');
             const btn = document.getElementById('btn-cadastro');
-            msgEl.textContent = '';
-            msgEl.className = 'error-msg';
+            setMessage('cadastro-msg', '');
 
-            // Validação
             let hasError = false;
             if (!nome) { showFieldError('cad-nome'); hasError = true; }
             if (!email) { showFieldError('cad-email'); hasError = true; }
             if (!senha) { showFieldError('cad-senha'); hasError = true; }
 
             if (hasError) {
-                msgEl.textContent = 'Por favor, preencha os campos obrigatórios (*).';
+                setMessage('cadastro-msg', 'Por favor, preencha os campos obrigatórios (*).');
                 return;
             }
 
-            // Validação de e-mail
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(email)) {
                 showFieldError('cad-email');
-                msgEl.textContent = 'Por favor, informe um e-mail válido.';
+                setMessage('cadastro-msg', 'Por favor, informe um e-mail válido.');
                 return;
             }
 
             if (senha.length < 4) {
                 showFieldError('cad-senha');
-                msgEl.textContent = 'A senha deve ter pelo menos 4 caracteres.';
+                setMessage('cadastro-msg', 'A senha deve ter pelo menos 4 caracteres.');
                 return;
             }
 
             const dados = {
-                nome: nome,
-                email: email,
-                telefone: telefone,
-                profile: profile,
-                city: city,
-                senha: senha
+                nome,
+                email,
+                telefone,
+                phone: telefone,
+                profile,
+                city,
+                senha
             };
 
             btn.disabled = true;
@@ -238,17 +258,18 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(dados)
                 });
-                const data = await response.json();
+                const data = await parseJsonResponse(response);
+
                 if (response.ok && data.success) {
-                    msgEl.textContent = `✅ Cadastro realizado! Seu código: ${data.codigo}`;
-                    msgEl.className = 'success-msg';
+                    setMessage('cadastro-msg', `✅ Cadastro realizado! Seu código: ${data.code || data.codigo || '—'}`, 'success');
                     document.getElementById('cadastro-form').reset();
-                    setTimeout(() => toggleForm(false), 3000);
-                } else {
-                    msgEl.textContent = data.error || 'Erro ao cadastrar. Tente novamente.';
+                    setTimeout(() => toggleForm(false), 2500);
+                    return;
                 }
+
+                setMessage('cadastro-msg', data.error || 'Erro ao cadastrar. Tente novamente.');
             } catch (err) {
-                msgEl.textContent = 'Erro de conexão. Tente novamente em instantes.';
+                setMessage('cadastro-msg', 'Erro de conexão. Tente novamente em instantes.');
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Cadastrar';
