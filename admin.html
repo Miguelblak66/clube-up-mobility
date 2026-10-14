@@ -14,122 +14,60 @@
             --muted: #475569;
             --border: #e2e8f0;
             --success: #16a34a;
-            --warning: #f59e0b;
             --danger: #dc2626;
+            --warning: #f59e0b;
         }
         * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-        }
-        .topbar {
-            background: var(--primary);
-            color: #fff;
-            padding: 18px 24px;
-            font-size: 1.2rem;
-            font-weight: 700;
-        }
-        .main-content {
-            max-width: 980px;
-            margin: 0 auto;
-            width: 100%;
-            padding: 26px 20px 60px;
-        }
-        .card-table {
-            background: var(--card);
-            border-radius: 12px;
-            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
-            padding: 22px;
-        }
-        h3 {
-            margin: 0 0 16px;
-            color: var(--text);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-        th, td {
-            padding: 12px 10px;
-            border-bottom: 1px solid var(--border);
-            text-align: left;
-        }
-        th {
-            background: var(--secondary);
-            color: var(--muted);
-            font-weight: 700;
-        }
-        tr:hover {
-            background: #f8fbff;
-        }
-        .status-ativo {
-            color: var(--success);
-            font-weight: bold;
-        }
-        .status-inativo {
-            color: var(--danger);
-            font-weight: bold;
-        }
-        .summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-            gap: 16px;
-            margin-bottom: 22px;
-        }
-        .mini-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 18px;
-            box-shadow: 0 6px 20px rgba(15,23,42,0.04);
-        }
-        .mini-card .label {
-            display: block;
-            color: var(--muted);
-            font-size: 12px;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        .mini-card .value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin: 0;
-        }
-        .alert {
-            margin-top: 18px;
-            padding: 12px 14px;
-            border-radius: 10px;
-            background: rgba(245, 158, 11, 0.08);
-            border: 1px solid rgba(245, 158, 11, 0.2);
-            color: #92400e;
-        }
+        body { margin: 0; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+        .topbar { background: var(--primary); color: #fff; padding: 18px 24px; font-size: 1.2rem; font-weight: 700; }
+        .main-content { max-width: 1000px; margin: 0 auto; width: 100%; padding: 26px 20px 60px; }
+        .card-table { background: var(--card); border-radius: 12px; box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06); padding: 22px; }
+        .login-card { max-width: 500px; margin: 40px auto; background: var(--card); border-radius: 14px; padding: 28px; box-shadow: 0 10px 30px rgba(15,23,42,0.08); }
+        h3 { margin: 0 0 18px; }
+        .field { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 8px; font-weight: 700; color: var(--muted); }
+        input { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; }
+        button { width: 100%; padding: 12px 16px; border: none; border-radius: 10px; background: var(--primary); color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; }
+        .btn-secondary { background: #e2e8f0; color: var(--text); margin-top: 12px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { padding: 12px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+        th { background: var(--secondary); color: var(--muted); font-weight: 700; }
+        tr:hover { background: #f8fbff; }
+        .status-ativo { color: var(--success); font-weight: bold; }
+        .status-inativo { color: var(--danger); font-weight: bold; }
+        .alert { margin-top: 16px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); padding: 12px 14px; border-radius: 10px; color: #92400e; }
+        .error { margin-top: 12px; background: rgba(220, 38, 38, 0.08); color: var(--danger); border: 1px solid rgba(220,38,38,0.18); border-radius: 10px; padding: 12px 14px; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
     <div class="topbar">⚙️ Painel de Controle - Relatório de Membros Ativos</div>
 
-    <div class="main-content">
-        <div class="summary">
-            <div class="mini-card">
-                <span class="label">Total de membros</span>
-                <p id="totalMembros" class="value">0</p>
-            </div>
-            <div class="mini-card">
-                <span class="label">Ativos</span>
-                <p id="membrosAtivos" class="value">0</p>
-            </div>
-            <div class="mini-card">
-                <span class="label">Inativos</span>
-                <p id="membrosInativos" class="value">0</p>
-            </div>
+    <div id="loginView" class="main-content">
+        <div class="login-card">
+            <h3>Login do Administrador</h3>
+            <form id="adminLoginForm">
+                <div class="field">
+                    <label for="adminEmail">E-mail</label>
+                    <input id="adminEmail" type="email" placeholder="admin@clubeup.com" required>
+                </div>
+                <div class="field">
+                    <label for="adminSenha">Senha</label>
+                    <input id="adminSenha" type="password" placeholder="********" required>
+                </div>
+                <button type="submit">Entrar</button>
+            </form>
+            <div id="adminError" class="error hidden"></div>
         </div>
+    </div>
 
+    <div id="dashboardView" class="main-content hidden">
         <div class="card-table">
-            <h3>Lista de Usuários Cadastrados</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px;">
+                <h3 id="adminTitle">Lista de Usuários Cadastrados</h3>
+                <button id="logoutBtn" type="button" class="btn-secondary" style="width:auto;padding:10px 16px;border-radius:10px;border:none;cursor:pointer;">Sair</button>
+            </div>
+
             <table>
                 <thead>
                     <tr>
@@ -142,39 +80,125 @@
                 </thead>
                 <tbody id="adminTableBody"></tbody>
             </table>
-            <div class="alert">Painel administrativo em modo demonstrativo. Conecte a API real para carregar dados dinâmicos.</div>
+            <div class="alert">Painel administrativo conectado ao backend de produção. Os dados são carregados via API.</div>
         </div>
     </div>
 
     <script>
-        const demoMembers = [
-            { nome: 'Ana Souza', email: 'ana@teste.com', perfil: 'Cliente', cidade: 'São Paulo', status: 'ativo' },
-            { nome: 'Carlos Mendes', email: 'carlos@teste.com', perfil: 'Motorista', cidade: 'Rio de Janeiro', status: 'ativo' },
-            { nome: 'Beatriz Lima', email: 'bebel@teste.com', perfil: 'Cliente', cidade: 'Belo Horizonte', status: 'inativo' },
-            { nome: 'João Pereira', email: 'joao@teste.com', perfil: 'Motorista', cidade: 'Curitiba', status: 'ativo' }
-        ];
+        const API_URL = (() => {
+            const localHosts = ['localhost', '127.0.0.1'];
+            return window.location.protocol === 'file:' || localHosts.includes(window.location.hostname)
+                ? 'http://localhost:8788'
+                : window.location.origin;
+        })();
 
-        const tbody = document.getElementById('adminTableBody');
+        const loginView = document.getElementById('loginView');
+        const dashboardView = document.getElementById('dashboardView');
+        const adminTableBody = document.getElementById('adminTableBody');
+        const adminError = document.getElementById('adminError');
+        const adminLoginForm = document.getElementById('adminLoginForm');
+        const logoutBtn = document.getElementById('logoutBtn');
 
-        function renderTable(rows) {
-            tbody.innerHTML = rows.map((member) => `
+        function showError(message) {
+            adminError.textContent = message;
+            adminError.classList.remove('hidden');
+        }
+
+        function clearError() {
+            adminError.textContent = '';
+            adminError.classList.add('hidden');
+        }
+
+        function renderMembers(rows) {
+            if (!rows.length) {
+                adminTableBody.innerHTML = '<tr><td colspan="5">Nenhum membro encontrado.</td></tr>';
+                return;
+            }
+
+            adminTableBody.innerHTML = rows.map((member) => `
                 <tr>
-                    <td>${member.nome}</td>
-                    <td>${member.email}</td>
-                    <td>${member.perfil}</td>
-                    <td>${member.cidade}</td>
-                    <td class="${member.status === 'ativo' ? 'status-ativo' : 'status-inativo'}">
-                        ${member.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                    <td>${member.name || member.nome || '—'}</td>
+                    <td>${member.email || '—'}</td>
+                    <td>${member.profile || member.perfil || 'cliente'}</td>
+                    <td>${member.city || member.cidade || '—'}</td>
+                    <td class="${member.status === 'active' ? 'status-ativo' : 'status-inativo'}">
+                        ${member.status === 'active' ? 'Ativo' : 'Inativo'}
                     </td>
                 </tr>
             `).join('');
-
-            document.getElementById('totalMembros').textContent = rows.length;
-            document.getElementById('membrosAtivos').textContent = rows.filter(m => m.status === 'ativo').length;
-            document.getElementById('membrosInativos').textContent = rows.filter(m => m.status !== 'ativo').length;
         }
 
-        renderTable(demoMembers);
+        async function loadMembers(token) {
+            const response = await fetch(`${API_URL}/api/admin/lista`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Não foi possível carregar os membros.');
+            }
+
+            renderMembers(data.membros || []);
+            document.getElementById('adminTitle').textContent = `Olá, ${data.usuario?.nome || 'Administrador'}`;
+        }
+
+        async function loginAdmin(email, senha) {
+            const response = await fetch(`${API_URL}/api/admin/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, senha })
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Erro ao entrar no painel administrativo.');
+            }
+
+            localStorage.setItem('clube_admin_token', data.token);
+            localStorage.setItem('clube_admin_user', JSON.stringify(data.usuario || {}));
+
+            loginView.classList.add('hidden');
+            dashboardView.classList.remove('hidden');
+            await loadMembers(data.token);
+        }
+
+        adminLoginForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            clearError();
+
+            const email = document.getElementById('adminEmail').value.trim();
+            const senha = document.getElementById('adminSenha').value;
+
+            try {
+                await loginAdmin(email, senha);
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('clube_admin_token');
+            localStorage.removeItem('clube_admin_user');
+            dashboardView.classList.add('hidden');
+            loginView.classList.remove('hidden');
+            adminLoginForm.reset();
+            clearError();
+        });
+
+        const savedToken = localStorage.getItem('clube_admin_token');
+        if (savedToken) {
+            loginView.classList.add('hidden');
+            dashboardView.classList.remove('hidden');
+            loadMembers(savedToken).catch(() => {
+                localStorage.removeItem('clube_admin_token');
+                dashboardView.classList.add('hidden');
+                loginView.classList.remove('hidden');
+            });
+        }
     </script>
 </body>
 </html>

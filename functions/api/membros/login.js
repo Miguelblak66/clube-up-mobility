@@ -8,7 +8,7 @@ export async function onRequest(context) {
     "Content-Type": "application/json"
   };
 
-  if (request.method === "OPTIONS") {
+  if (request.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
@@ -16,15 +16,16 @@ export async function onRequest(context) {
     const encoder = new TextEncoder();
     const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(value));
     return Array.from(new Uint8Array(hashBuffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('');
   }
 
   async function derivePbkdf2(password, saltHex) {
     const encoder = new TextEncoder();
     const saltBytes = Uint8Array.from(
-      saltHex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
+      (saltHex || '').match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
     );
+
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       encoder.encode(password),

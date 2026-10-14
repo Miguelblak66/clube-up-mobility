@@ -8,23 +8,16 @@ export async function onRequest(context) {
     "Content-Type": "application/json"
   };
 
-  if (request.method === "OPTIONS") {
+  if (request.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
-  }
-
-  async function sha256Hex(value) {
-    const encoder = new TextEncoder();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(value));
-    return Array.from(new Uint8Array(hashBuffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
   }
 
   async function derivePbkdf2(password, saltHex) {
     const encoder = new TextEncoder();
     const saltBytes = Uint8Array.from(
-      saltHex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
+      (saltHex || '').match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
     );
+
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       encoder.encode(password),
@@ -51,7 +44,6 @@ export async function onRequest(context) {
 
   try {
     const body = await request.json().catch(() => ({}));
-
     const nome = String(body.nome || body.name || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const senha = String(body.senha || '');

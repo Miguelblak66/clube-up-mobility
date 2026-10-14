@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel do Posto | Clube Up Mobility</title>
+    <title>Painel do Parceiro | Clube Up Mobility</title>
     <style>
         :root {
             --bg: #f6faf7;
@@ -17,112 +17,180 @@
             --success: #166534;
         }
         * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-        }
-        .wrap {
-            max-width: 620px;
-            margin: 40px auto;
-            padding: 20px;
-        }
-        .box {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 26px;
-            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
-        }
-        h2 {
-            margin: 0 0 16px;
-            font-size: 1.8rem;
-            text-align: center;
-        }
-        .btn {
-            width: 100%;
-            padding: 14px 18px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: 0.2s ease;
-        }
-        .btn-primary {
-            background: var(--primary);
-            color: #fff;
-        }
-        .btn-primary:hover {
-            background: var(--primary-dark);
-        }
-        #reader {
-            margin-top: 18px;
-            min-height: 220px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(180deg, #ffffff, #f8fafc);
-            color: var(--muted);
-            text-align: center;
-            padding: 16px;
-        }
-        #res {
-            margin-top: 18px;
-            padding: 16px;
-            border-radius: 12px;
-            font-weight: bold;
-            font-size: 1.05rem;
-            display: none;
-        }
-        .success {
-            display: block !important;
-            background: rgba(22, 101, 52, 0.08);
-            color: var(--success);
-            border: 1px solid rgba(22, 101, 52, 0.18);
-        }
-        .error {
-            display: block !important;
-            background: rgba(153, 27, 27, 0.08);
-            color: var(--danger);
-            border: 1px solid rgba(153, 27, 27, 0.18);
-        }
+        body { margin: 0; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+        .wrap { max-width: 700px; margin: 40px auto; padding: 20px; }
+        .box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 26px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); }
+        h2 { margin: 0 0 16px; font-size: 1.8rem; text-align: center; }
+        .field { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 8px; font-weight: 700; color: var(--muted); }
+        input { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; }
+        .btn { width: 100%; padding: 14px 18px; border: none; border-radius: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-secondary { background: #e2e8f0; color: var(--text); }
+        #reader { margin-top: 18px; min-height: 220px; border: 1px solid var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, #ffffff, #f8fafc); color: var(--muted); text-align: center; padding: 16px; }
+        #res { margin-top: 18px; padding: 16px; border-radius: 12px; font-weight: bold; font-size: 1.05rem; display: none; }
+        .success { display: block !important; background: rgba(22, 101, 52, 0.08); color: var(--success); border: 1px solid rgba(22, 101, 52, 0.18); }
+        .error { display: block !important; background: rgba(153, 27, 27, 0.08); color: var(--danger); border: 1px solid rgba(153, 27, 27, 0.18); }
+        .hidden { display: none !important; }
+        .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+        .mini-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: #f8fafc; }
+        .mini-card .label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 8px; text-transform: uppercase; }
+        .mini-card .value { margin: 0; font-size: 1.2rem; font-weight: 700; }
     </style>
 </head>
 <body>
     <div class="wrap">
-        <div class="box">
-            <h2>Painel do Posto</h2>
-            <button class="btn btn-primary" type="button" id="scanBtn">Escanear QR Code</button>
+        <div id="loginBox" class="box">
+            <h2>Login do Parceiro</h2>
+            <form id="partnerLoginForm">
+                <div class="field">
+                    <label for="partnerEmail">E-mail</label>
+                    <input id="partnerEmail" type="email" placeholder="empresa@exemplo.com" required>
+                </div>
+                <div class="field">
+                    <label for="partnerSenha">Senha</label>
+                    <input id="partnerSenha" type="password" placeholder="********" required>
+                </div>
+                <button class="btn btn-primary" type="submit">Entrar</button>
+            </form>
+            <div id="partnerError" class="error hidden"></div>
+        </div>
+
+        <div id="dashboardBox" class="box hidden">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px;">
+                <h2 style="margin:0;">Painel do Posto</h2>
+                <button id="logoutBtn" type="button" class="btn btn-secondary" style="width:auto; padding:10px 16px;">Sair</button>
+            </div>
+
+            <div class="summary">
+                <div class="mini-card">
+                    <span class="label">Empresa</span>
+                    <p id="partnerName" class="value">—</p>
+                </div>
+                <div class="mini-card">
+                    <span class="label">Status</span>
+                    <p id="partnerStatus" class="value">Ativo</p>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" type="button" id="scanBtn" style="margin-top:18px;">Escanear QR Code</button>
             <div id="reader">Aguardando leitura...</div>
             <div id="res"></div>
         </div>
     </div>
 
     <script>
+        const API_URL = (() => {
+            const localHosts = ['localhost', '127.0.0.1'];
+            return window.location.protocol === 'file:' || localHosts.includes(window.location.hostname)
+                ? 'http://localhost:8788'
+                : window.location.origin;
+        })();
+
+        const loginBox = document.getElementById('loginBox');
+        const dashboardBox = document.getElementById('dashboardBox');
+        const partnerError = document.getElementById('partnerError');
+        const partnerLoginForm = document.getElementById('partnerLoginForm');
+        const logoutBtn = document.getElementById('logoutBtn');
         const scanBtn = document.getElementById('scanBtn');
         const readerEl = document.getElementById('reader');
         const resEl = document.getElementById('res');
+
+        function showPartnerError(message) {
+            partnerError.textContent = message;
+            partnerError.classList.remove('hidden');
+        }
+
+        function clearPartnerError() {
+            partnerError.textContent = '';
+            partnerError.classList.add('hidden');
+        }
 
         function setResult(message, type = 'success') {
             resEl.textContent = message;
             resEl.className = type === 'success' ? 'success' : 'error';
         }
 
-        function simulateScan() {
+        async function loginParceiro(email, senha) {
+            const response = await fetch(`${API_URL}/api/parceiros/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, senha })
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Erro ao entrar no painel do parceiro.');
+            }
+
+            localStorage.setItem('clube_parceiro_token', data.token);
+            localStorage.setItem('clube_parceiro_user', JSON.stringify(data.usuario || {}));
+            return data;
+        }
+
+        async function initPartnerDashboard(token) {
+            const response = await fetch(`${API_URL}/api/parceiros/perfil`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Sessão inválida.');
+            }
+
+            document.getElementById('partnerName').textContent = data.usuario.company_name || 'Parceiro';
+            loginBox.classList.add('hidden');
+            dashboardBox.classList.remove('hidden');
+        }
+
+        partnerLoginForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            clearPartnerError();
+
+            const email = document.getElementById('partnerEmail').value.trim();
+            const senha = document.getElementById('partnerSenha').value;
+
+            try {
+                const data = await loginParceiro(email, senha);
+                await initPartnerDashboard(data.token);
+            } catch (error) {
+                showPartnerError(error.message);
+            }
+        });
+
+        scanBtn.addEventListener('click', () => {
             const code = 'MEM-' + Math.random().toString(36).slice(2, 8).toUpperCase();
             const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(code);
             readerEl.innerHTML = `<img src="${qrUrl}" alt="QR Code" style="max-width:220px; width:100%;">`;
+            setTimeout(() => setResult(`Cupom validado com sucesso. Código: ${code}`, 'success'), 500);
+        });
 
-            setTimeout(() => {
-                setResult(`Cupom validado com sucesso. Código: ${code}`, 'success');
-            }, 500);
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('clube_parceiro_token');
+            localStorage.removeItem('clube_parceiro_user');
+            dashboardBox.classList.add('hidden');
+            loginBox.classList.remove('hidden');
+            readerEl.textContent = 'Aguardando leitura...';
+            resEl.className = '';
+            resEl.style.display = 'none';
+            partnerLoginForm.reset();
+            clearPartnerError();
+        });
+
+        const savedToken = localStorage.getItem('clube_parceiro_token');
+        if (savedToken) {
+            initPartnerDashboard(savedToken).catch(() => {
+                localStorage.removeItem('clube_parceiro_token');
+                localStorage.removeItem('clube_parceiro_user');
+                dashboardBox.classList.add('hidden');
+                loginBox.classList.remove('hidden');
+            });
         }
-
-        scanBtn.addEventListener('click', simulateScan);
     </script>
 </body>
 </html>
