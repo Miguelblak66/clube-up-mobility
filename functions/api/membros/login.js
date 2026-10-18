@@ -1,13 +1,9 @@
+import { getCorsHeaders, isLoginBlocked, recordLoginAttempt } from '../_utils.js';
+
 export async function onRequest(context) {
   const { request, env } = context;
 
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Content-Type": "application/json"
-  };
-
+  const corsHeaders = await getCorsHeaders(env, request);
   if (request.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -50,6 +46,8 @@ export async function onRequest(context) {
       .join('');
   }
 
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+
   try {
     const body = await request.json().catch(() => ({}));
     const email = String(body.email || '').trim().toLowerCase();
@@ -62,6 +60,15 @@ export async function onRequest(context) {
       });
     }
 
+    const blocked = await isLoginBlocked(env, email, ip, { windowMinutes: 15, maxAttempts: 5 });
+    if (blocked) {
+      await recordLoginAttempt(env, email, ip, false);
+      return new Response(JSON.stringify({ error: 'Muitas tentativas. Tente novamente em 15 minutos.' }), {
+        status: 429,
+        headers: corsHeaders
+      });
+    }
+
     const usuario = await env.DB.prepare(`
       SELECT mu.id, mu.member_id, mu.email, mu.password_hash, mu.salt, cm.name, cm.code
       FROM member_users mu
@@ -70,6 +77,7 @@ export async function onRequest(context) {
     `).bind(email).get();
 
     if (!usuario) {
+      await recordLoginAttempt(env, email, ip, false);
       return new Response(JSON.stringify({ error: 'Credenciais invalidas' }), {
         status: 401,
         headers: corsHeaders
@@ -86,11 +94,14 @@ export async function onRequest(context) {
     }
 
     if (!senhaValida) {
+      await recordLoginAttempt(env, email, ip, false);
       return new Response(JSON.stringify({ error: 'Credenciais invalidas' }), {
         status: 401,
         headers: corsHeaders
       });
     }
+
+    await recordLoginAttempt(env, email, ip, true);
 
     const expiraEm = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
     const token = crypto.randomUUID();
