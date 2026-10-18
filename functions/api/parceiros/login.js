@@ -1,13 +1,9 @@
+import { getCorsHeaders, isLoginBlocked, recordLoginAttempt } from '../_utils.js';
+
 export async function onRequest(context) {
   const { request, env } = context;
 
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Content-Type": "application/json"
-  };
-
+  const corsHeaders = await getCorsHeaders(env, request);
   if (request.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -42,6 +38,8 @@ export async function onRequest(context) {
       .join('');
   }
 
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+
   try {
     const body = await request.json().catch(() => ({}));
     const email = String(body.email || '').trim().toLowerCase();
@@ -54,14 +52,24 @@ export async function onRequest(context) {
       });
     }
 
+    const blocked = await isLoginBlocked(env, email, ip, { windowMinutes: 15, maxAttempts: 5 });
+    if (blocked) {
+      await recordLoginAttempt(env, email, ip, false);
+      return new Response(JSON.stringify({ error: 'Muitas tentativas. Tente novamente em 15 minutos.' }), {
+        status: 429,
+        headers: corsHeaders
+      });
+    }
+
     const parceiro = await env.DB.prepare(`
-      SELECT pu.id, pu.partner_id, pu.email, pu.password_hash, pu.salt, p.company_name, p.status
+      SELECT pu.id, pu.partner_id, pu.email, pu.password_hash, pu.salt, p.company_name, p.status, p.code
       FROM partner_users pu
       JOIN partners p ON p.id = pu.partner_id
       WHERE lower(pu.email) = ?
     `).bind(email).get();
 
     if (!parceiro) {
+      await recordLoginAttempt(env, email, ip, false);
       return new Response(JSON.stringify({ error: 'Credenciais invalidas' }), {
         status: 401,
         headers: corsHeaders
@@ -69,6 +77,7 @@ export async function onRequest(context) {
     }
 
     if (parceiro.status !== 'active') {
+      await recordLoginAttempt(env, email, ip, false);
       return new Response(JSON.stringify({ error: 'Parceiro inativo.' }), {
         status: 403,
         headers: corsHeaders
@@ -82,11 +91,14 @@ export async function onRequest(context) {
         ) === parceiro.password_hash;
 
     if (!senhaValida) {
+      await recordLoginAttempt(env, email, ip, false);
       return new Response(JSON.stringify({ error: 'Credenciais invalidas' }), {
         status: 401,
         headers: corsHeaders
       });
     }
+
+    await recordLoginAttempt(env, email, ip, true);
 
     const expiraEm = new Date(Date.now() + 1000 * 60 * 60 * 8).toISOString();
     const token = crypto.randomUUID();
@@ -102,6 +114,7 @@ export async function onRequest(context) {
       usuario: {
         id: parceiro.partner_id,
         company_name: parceiro.company_name,
+        code: parceiro.code,
         email: parceiro.email
       }
     }), {
