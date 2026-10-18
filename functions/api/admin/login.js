@@ -1,15 +1,19 @@
+import { getCorsHeaders, isLoginBlocked, recordLoginAttempt } from '../_utils.js';
+
 export async function onRequest(context) {
   const { request, env } = context;
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Content-Type": "application/json"
-  };
+  const corsHeaders = await getCorsHeaders(env, request);
 
   if (request.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  async function sha256Hex(value) {
+    const encoder = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(value));
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
   }
 
   async function derivePbkdf2(password, saltHex) {
@@ -42,6 +46,8 @@ export async function onRequest(context) {
       .join('');
   }
 
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+
   try {
     const body = await request.json().catch(() => ({}));
     const email = String(body.email || '').trim().toLowerCase();
@@ -54,6 +60,15 @@ export async function onRequest(context) {
       });
     }
 
+    const blocked = await isLoginBlocked(env, email, ip, { windowMinutes: 15, maxAttempts: 5 });
+    if (blocked) {
+      await recordLoginAttempt(env, email, ip, false);
+      return new Response(JSON.stringify({ error: 'Muitas tentativas. Tente novamente em 15 minutos.' }), {
+        status: 429,
+        headers: corsHeaders
+      });
+    }
+
     const admin = await env.DB.prepare(`
       SELECT id, nome, email, senha, salt
       FROM administradores
@@ -61,6 +76,7 @@ export async function onRequest(context) {
     `).bind(email).get();
 
     if (!admin) {
+      await recordLoginAttempt(env, email, ip, false);
       return new Response(JSON.stringify({ error: 'Credenciais invalidas' }), {
         status: 401,
         headers: corsHeaders
@@ -69,16 +85,17 @@ export async function onRequest(context) {
 
     const senhaValida = admin.salt
       ? (await derivePbkdf2(senha, admin.salt)) === admin.senha
-      : await crypto.subtle.digest('SHA-256', new TextEncoder().encode(senha)).then((buf) =>
-          Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('')
-        ) === admin.senha;
+      : await sha256Hex(senha) === admin.senha;
 
     if (!senhaValida) {
+      await recordLoginAttempt(env, email, ip, false);
       return new Response(JSON.stringify({ error: 'Credenciais invalidas' }), {
         status: 401,
         headers: corsHeaders
       });
     }
+
+    await recordLoginAttempt(env, email, ip, true);
 
     const expiraEm = new Date(Date.now() + 1000 * 60 * 60 * 8).toISOString();
     const token = crypto.randomUUID();
