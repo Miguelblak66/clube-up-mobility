@@ -60,7 +60,7 @@ export async function onRequest(context) {
       });
     }
 
-    const emailExists = await env.DB.prepare(`
+    const emailExists = await env.db.prepare(`
       SELECT 1 FROM member_users WHERE lower(email) = ?
     `).bind(email).get();
 
@@ -78,7 +78,7 @@ export async function onRequest(context) {
       .join('');
     const senhaHash = await derivePbkdf2(senha, saltHex);
 
-    const memberInsert = await env.DB.prepare(`
+    const memberInsert = await env.db.prepare(`
       INSERT INTO club_members (code, name, phone, email, profile, city, status)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(code, nome, telefone, email, profile, city, 'active').run();
@@ -91,7 +91,7 @@ export async function onRequest(context) {
       });
     }
 
-    await env.DB.prepare(`
+    await env.db.prepare(`
       INSERT INTO member_users (member_id, email, password_hash, salt, status)
       VALUES (?, ?, ?, ?, ?)
     `).bind(memberId, email, senhaHash, saltHex, 'active').run();
