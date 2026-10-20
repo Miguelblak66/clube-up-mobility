@@ -79,7 +79,7 @@ export async function onRequest(context) {
     const senhaHash = await derivePbkdf2(senha, saltHex);
 
     const memberInsert = await env.db.prepare(`
-      INSERT INTO club_members (code, name, phone, email, profile, city, status)
+      INSERT INTO club_members (code, name, phone, email,password_hash,profile, city, status)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(code, nome, telefone, email, profile, city, 'active').run();
 
