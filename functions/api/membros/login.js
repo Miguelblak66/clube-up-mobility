@@ -69,7 +69,7 @@ export async function onRequest(context) {
       });
     }
 
-    const usuario = await env.DB.prepare(`
+    const usuario = await env.db.prepare(`
       SELECT mu.id, mu.member_id, mu.email, mu.password_hash, mu.salt, cm.name, cm.code
       FROM member_users mu
       JOIN club_members cm ON cm.id = mu.member_id
@@ -106,7 +106,7 @@ export async function onRequest(context) {
     const expiraEm = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
     const token = crypto.randomUUID();
 
-    await env.DB.prepare(`
+    await env.db.prepare(`
       INSERT INTO sessoes (token, usuario_id, tipo_usuario, expira_em)
       VALUES (?, ?, ?, ?)
     `).bind(token, usuario.member_id, 'membro', expiraEm).run();
