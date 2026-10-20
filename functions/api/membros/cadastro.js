@@ -8,28 +8,38 @@ export async function onRequest(context) {
     "Content-Type": "application/json"
   };
 
-  if (request.method === 'OPTIONS') {
+  if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: "Método não permitido." }),
+      { status: 405, headers: corsHeaders }
+    );
   }
 
   async function derivePbkdf2(password, saltHex) {
     const encoder = new TextEncoder();
+
     const saltBytes = Uint8Array.from(
-      (saltHex || '').match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
+      (saltHex.match(/.{1,2}/g) || []).map(
+        byte => parseInt(byte, 16)
+      )
     );
 
     const keyMaterial = await crypto.subtle.importKey(
-      'raw',
+      "raw",
       encoder.encode(password),
-      'PBKDF2',
+      "PBKDF2",
       false,
-      ['deriveBits']
+      ["deriveBits"]
     );
 
     const derivedBits = await crypto.subtle.deriveBits(
       {
-        name: 'PBKDF2',
-        hash: 'SHA-256',
+        name: "PBKDF2",
+        hash: "SHA-256",
         salt: saltBytes,
         iterations: 120000
       },
@@ -38,79 +48,107 @@ export async function onRequest(context) {
     );
 
     return Array.from(new Uint8Array(derivedBits))
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
+      .map(byte => byte.toString(16).padStart(2, "0"))
+      .join("");
   }
 
   try {
     const body = await request.json().catch(() => ({}));
-    const nome = String(body.nome || body.name || '').trim();
-    const email = String(body.email || '').trim().toLowerCase();
-    const senha = String(body.senha || '');
-    const telefone = String(body.telefone || body.phone || '').trim();
-    const city = String(body.city || body.cidade || '').trim();
-    const profile = String(body.profile || body.perfil || 'cliente').trim();
+
+    const nome = String(body.nome || body.name || "").trim();
+    const email = String(body.email || "").trim().toLowerCase();
+    const senha = String(body.senha || "");
+    const telefone = String(body.telefone || body.phone || "").trim();
+    const city = String(body.city || body.cidade || "").trim();
+    const profile = String(body.profile || body.perfil || "cliente").trim();
 
     if (!nome || !email || !senha || !telefone || !city) {
-      return new Response(JSON.stringify({
-        error: 'Nome, e-mail, senha, telefone e cidade são obrigatorios'
-      }), {
-        status: 400,
-        headers: corsHeaders
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Nome, e-mail, senha, telefone e cidade são obrigatórios."
+        }),
+        { status: 400, headers: corsHeaders }
+      );
     }
 
     const emailExists = await env.db.prepare(`
-      SELECT 1 FROM member_users WHERE lower(email) = ?
-    `).bind(email).get();
+      SELECT 1
+      FROM member_users
+      WHERE lower(email) = ?
+    `).bind(email).first();
 
     if (emailExists) {
-      return new Response(JSON.stringify({ error: 'Este e-mail já está cadastrado.' }), {
-        status: 409,
-        headers: corsHeaders
-      });
+      return new Response(
+        JSON.stringify({ error: "Este e-mail já está cadastrado." }),
+        { status: 409, headers: corsHeaders }
+      );
     }
 
-    const code = String(body.codigo || body.code || `MEM-${Date.now().toString(36).toUpperCase()}`);
+    const code = String(
+      body.codigo ||
+      body.code ||
+      `MEM-${Date.now().toString(36).toUpperCase()}`
+    );
+
     const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+
     const saltHex = Array.from(saltBytes)
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
+      .map(byte => byte.toString(16).padStart(2, "0"))
+      .join("");
+
     const senhaHash = await derivePbkdf2(senha, saltHex);
 
     const memberInsert = await env.db.prepare(`
-      INSERT INTO club_members (code, name, phone, email,password_hash, profile, city, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(code, nome, telefone, email, profile, city, 'active').run();
+      INSERT INTO club_members
+        (code, name, phone, email, password_hash, profile, city, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      code,
+      nome,
+      telefone,
+      email,
+      senhaHash,
+      profile,
+      city,
+      "active"
+    ).run();
 
-    const memberId = memberInsert?.meta?.last_row_id ?? null;
+    const memberId = memberInsert?.meta?.last_row_id;
+
     if (!memberId) {
-      return new Response(JSON.stringify({ error: 'Não foi possível criar o membro.' }), {
-        status: 500,
-        headers: corsHeaders
-      });
+      throw new Error("Não foi possível obter o ID do membro criado.");
     }
 
     await env.db.prepare(`
-      INSERT INTO member_users (member_id, email, password_hash, salt, status)
+      INSERT INTO member_users
+        (member_id, email, password_hash, salt, status)
       VALUES (?, ?, ?, ?, ?)
-    `).bind(memberId, email, senhaHash, saltHex, 'active').run();
+    `).bind(
+      memberId,
+      email,
+      senhaHash,
+      saltHex,
+      "active"
+    ).run();
 
-    return new Response(JSON.stringify({
-      success: true,
-      code,
-      message: 'Cadastro realizado com sucesso'
-    }), {
-      status: 201,
-      headers: corsHeaders
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        code,
+        message: "Cadastro realizado com sucesso."
+      }),
+      { status: 201, headers: corsHeaders }
+    );
+
   } catch (error) {
-    return new Response(JSON.stringify({
-      error: 'Erro ao cadastrar membro',
-      detail: error?.message || 'Erro desconhecido'
-    }), {
-      status: 500,
-      headers: corsHeaders
-    });
+    console.error("Erro no cadastro de membro:", error);
+
+    return new Response(
+      JSON.stringify({
+        error: "Erro ao cadastrar membro",
+        detail: error?.message || "Erro desconhecido"
+      }),
+      { status: 500, headers: corsHeaders }
+    );
   }
 }
