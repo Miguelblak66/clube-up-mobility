@@ -61,7 +61,7 @@ export async function onRequest(context) {
       });
     }
 
-    const parceiro = await env.DB.prepare(`
+    const parceiro = await env.db.prepare(`
       SELECT pu.id, pu.partner_id, pu.email, pu.password_hash, pu.salt, p.company_name, p.status, p.code
       FROM partner_users pu
       JOIN partners p ON p.id = pu.partner_id
@@ -103,7 +103,7 @@ export async function onRequest(context) {
     const expiraEm = new Date(Date.now() + 1000 * 60 * 60 * 8).toISOString();
     const token = crypto.randomUUID();
 
-    await env.DB.prepare(`
+    await env.db.prepare(`
       INSERT INTO sessoes (token, usuario_id, tipo_usuario, expira_em)
       VALUES (?, ?, ?, ?)
     `).bind(token, parceiro.partner_id, 'parceiro', expiraEm).run();

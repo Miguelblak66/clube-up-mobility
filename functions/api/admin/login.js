@@ -54,7 +54,7 @@ export async function onRequest(context) {
       });
     }
 
-    const admin = await env.DB.prepare(`
+    const admin = await env.db.prepare(`
       SELECT id, nome, email, senha, salt
       FROM administradores
       WHERE lower(email) = ?
@@ -83,7 +83,7 @@ export async function onRequest(context) {
     const expiraEm = new Date(Date.now() + 1000 * 60 * 60 * 8).toISOString();
     const token = crypto.randomUUID();
 
-    await env.DB.prepare(`
+    await env.db.prepare(`
       INSERT INTO sessoes (token, usuario_id, tipo_usuario, expira_em)
       VALUES (?, ?, ?, ?)
     `).bind(token, admin.id, 'admin', expiraEm).run();

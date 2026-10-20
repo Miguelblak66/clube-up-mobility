@@ -13,7 +13,7 @@ export async function onRequest(context) {
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.replace('Bearer ', '').trim() : null;
 
     const sessao = await verifySession(env, token, 'parceiro');
-    const parceiro = await env.DB.prepare(`
+    const parceiro = await env.db.prepare(`
       SELECT p.id, p.company_name, p.code, p.email, p.status
       FROM partners p
       WHERE p.id = ?

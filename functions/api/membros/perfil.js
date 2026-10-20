@@ -22,7 +22,7 @@ export async function onRequest(context) {
     }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    const sessao = await env.DB.prepare(`
+    const sessao = await env.db.prepare(`
       SELECT s.usuario_id, s.expira_em, m.code, m.name, m.email
       FROM sessoes s
       JOIN club_members m ON m.id = s.usuario_id
@@ -37,7 +37,7 @@ export async function onRequest(context) {
     }
 
     if (new Date(sessao.expira_em) < new Date()) {
-      await env.DB.prepare('DELETE FROM sessoes WHERE token = ?').bind(token).run();
+      await env.db.prepare('DELETE FROM sessoes WHERE token = ?').bind(token).run();
       return new Response(JSON.stringify({ error: 'Sessao expirada' }), {
         status: 401,
         headers: corsHeaders
